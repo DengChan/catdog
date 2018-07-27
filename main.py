@@ -5,10 +5,8 @@
 import os
 import torch as t
 from torch.utils.data import DataLoader
-import torchvision as tv
 import models
 from torchnet import meter
-from tqdm import tqdm
 
 from data.dataset import DogCat
 from config import opt
@@ -44,6 +42,7 @@ def train(**kwargs):
         model.load(opt.load_model_path)
     if opt.use_gpu:
         model = model.cuda()
+
     
     '''加载数据'''
     train_dataset = DogCat(opt.train_data_root,train = True)
@@ -54,10 +53,15 @@ def train(**kwargs):
     valid_loader = DataLoader(valid_dataset,batch_size = opt.batch_size,
                               shuffle = False,num_workers = opt.num_workers)
     
+    #print('训练集长度:',len(train_dataset))
+    #print('验证集长度:',len(valid_dataset))
     '''定义损失和优化函数'''
     criterion = t.nn.CrossEntropyLoss()
     lr = opt.lr
-    optimizer = t.optim.Adam(model.parameters(),lr = lr,
+    
+    #随机梯度下降算法优化参数
+    
+    optimizer = t.optim.SGD(model.parameters(),lr = lr,momentum=0.9,
                              weight_decay = opt.weight_decay)
     
     '''定义平均损失和混淆矩阵'''
@@ -81,6 +85,8 @@ def train(**kwargs):
     for epoch in range(opt.max_epoch):
         loss_meter.reset()
         confusion_matrix.reset()
+        total = 0
+        correct = 0
         for i,data in enumerate(train_loader):
             inputs,labels = data
             #是否使用GPU计算
@@ -96,18 +102,25 @@ def train(**kwargs):
             optimizer.step()
             
             #更新各指标以及可视化
-            loss_meter.add(loss.data[0])
-            print('loss.data[0] = ',loss.data[0])
-            print('loss.item() = ',loss.item())
+            loss_meter.add(loss.item())
+            #print('loss.data[0] = ',loss.data[0])
+            #print('loss.item() = ',loss.item())
             confusion_matrix.add(outputs.data,labels.data)
             
             if i%opt.print_freq == opt.print_freq-1:
-                print('loss_meter.value()[0] = ',loss_meter.value()[0])
+                total += labels.size(0)
+                _,predicted = t.max(outputs.data,1)
+                correct += (predicted == labels).sum().item()
+                print('predicted:',predicted)
+                print('labels:',labels)
+                #print('predicted==labels:',predicted == labels)
+                print('train_accuracy = %0.3f%%' % (100*(correct/total)))
+                print('average loss =  ',loss_meter.value()[0])
                 vis.plot('loss',loss_meter.value()[0])
                 
                 #进入debug模式
                 if os.path.exists(opt.debug_file):
-                    import ipdb
+                    import ipdb 
                     ipdb.set_trace()
         #保存模型    
         model.save()
@@ -115,6 +128,7 @@ def train(**kwargs):
         #在验证集上验证，并将结果可视化
         #验证集的混淆矩阵，预测精度
         valid_cm,valid_accuracy = valid(model,valid_loader)
+        print('valid_accuracy:',valid_accuracy,'%')
         
         vis.plot('valid_accuracy',valid_accuracy)
         vis.log("epoch:{epoch},lr:{lr},train_cm:{train_cm},valid_cm:{valid_cm},".format(
@@ -123,7 +137,7 @@ def train(**kwargs):
         #更新lr
         if loss_meter.value()[0]>previous_loss:
             lr = lr * opt.lr_decay
-            for lr,param_group in optimizer.param_groups:
+            for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
         
         previous_loss = loss_meter.value()[0]
@@ -141,21 +155,41 @@ def valid(model,dataloader):
     '''计算预测数据'''
     #验证模式，使模型参数保持不变
     model.eval()
-    confusion_matrix = meter.ConfusionMeter(2)
+    confusion_matrix2 = meter.ConfusionMeter(2)
+    
+    #统计总数和正确预测的个数
+    total =  0
+    correct = 0
     
     for i,data in enumerate(dataloader):
         inputs,labels = data
         if opt.use_gpu :
             inputs = inputs.cuda()
+            labels = labels.cuda()
         outputs = model(inputs)
         '''修改点'''
-        confusion_matrix.add(outputs.data,labels.data)
+        #更新混淆矩阵
+        
+        confusion_matrix2.add(outputs.data,labels)
+        
+        #统计正确和错误数
+        
+        _,predicted = t.max(outputs.data,1)
+        print('predicted:',predicted)
+        print('labels:',labels)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+        
+        
+       # print('output.data.squeeze():',outputs.data.squeeze())
+        #print('outputs.data:',outputs.data)
+       # print('labels.type(t.Tensor):',labels.type(t.Tensor))
     
     #恢复为训练模型
     model.train()
-    cm_value = confusion_matrix.value()
-    accuracy = 100. * ((cm_value[0][0]+cm_value[1][1])/cm_value.sum())
-    return confusion_matrix,accuracy    
+    #cm_value = confusion_matrix2.value()
+    accuracy = 100. * (correct/total)
+    return confusion_matrix2,accuracy    
 
 
 def test(**kwargs):
@@ -169,6 +203,7 @@ def test(**kwargs):
         model.load(opt.load_model_path)
     if opt.use_gpu:
         model = model.cuda()
+
     
     #加载数据
     test_dataset = DogCat(opt.test_data_root,test = True)
@@ -201,7 +236,7 @@ def help():
     '''
     
     print("""
-          usage:python file.py <function> [--args=value]
+          usage:python {0} <function> [--args=value]
           <function>:= train | test | help 
           example: 
             python {0} train --env='env0701' --lr=0.01

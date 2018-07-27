@@ -16,31 +16,27 @@ class DogCat(data.Dataset):
             3 从训练集中划出验证集
             3 予以不同的transform 
         '''
-        imgs = [os.path.join(root,img) for img in os.listdir(root)]
         self.test = test
-        #整理文件次序
+        self.imgs = []
+        
         # test: data/test1/8973.jpg
         # train: data/train/cat.10004.jpg
-        if self.test:
-            imgs = sorted(imgs,key = lambda x :int(x.split('.')[-2].split('/')[-1]))
-        else:
-            imgs = sorted(imgs,key = lambda x :int(x.split('.')[-2]))
-        
-        #获取图片数量
-        imgnum = len(imgs)
-        
-         # 打乱图像顺序
-        np.random.seed(100)
-        imgs = np.random.permutation(imgs)
         
         if test:
-            self.imgs = imgs
+            self.imgs = [os.path.join(root,img) for img in os.listdir(root)]
         elif train:
-            #前70%作为训练集
-            self.imgs= imgs[:int(0.7*imgnum)]
+            #训练集
+            root_cat = root + 'cat/'
+            self.imgs = [os.path.join(root_cat,img) for img in os.listdir(root_cat)]
+            root_dog = root+ 'dog/'
+            self.imgs += [os.path.join(root_dog,img) for img in os.listdir(root_dog)]
         else:
-            #后30%作为验证集
-            self.imgs = imgs[int(0.7*imgnum):]
+            #验证集
+            root = 'data/valid/'
+            root_cat = root + 'cat/'
+            self.imgs = [os.path.join(root_cat,img) for img in os.listdir(root_cat)]
+            root_dog = root + 'dog/'
+            self.imgs += [os.path.join(root_dog,img) for img in os.listdir(root_dog)]
         
         if transforms == None:
             normalize = T.Normalize(mean=[0.485,0.456,0.406],
@@ -50,7 +46,8 @@ class DogCat(data.Dataset):
                 self.transforms = T.Compose([
                                        T.Resize(224),
                                        T.CenterCrop(224),
-                                       T.ToTensor(),normalize,])
+                                       T.ToTensor(),
+                                       normalize])
 
             else:
                 self.transforms = T.Compose([
@@ -63,6 +60,7 @@ class DogCat(data.Dataset):
     
     def __getitem__(self,index):
         #需要返回单个图像的 data,label
+        
         img_path = self.imgs[index]
         data = Image.open(img_path)
         data = self.transforms(data)
@@ -72,7 +70,7 @@ class DogCat(data.Dataset):
             label = int(img_path.split('.')[-2].split('/')[-1])
         else:
             # 1是狗 0是猫
-            label = 1 if 'dog' in img_path.split('/')[-1] else 0
+            label = 1 if 'dog' in img_path else 0
         
         return data,label
         
@@ -123,3 +121,4 @@ for i,data in enumerate(trainloader):
             
             
             
+

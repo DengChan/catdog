@@ -48,7 +48,7 @@ class Visualizer(object):
         '''
         x = self.index.get(name, 0)
         self.vis.line(Y=np.array([y]), X=np.array([x]),
-                      win=unicode(name),
+                      win=name,
                       opts=dict(title=name),
                       update=None if x == 0 else 'append',
                       **kwargs
@@ -64,7 +64,7 @@ class Visualizer(object):
         ！！！don‘t ~~self.img('input_imgs',t.Tensor(100,64,64),nrows=10)~~！！！
         '''
         self.vis.images(img_.cpu().numpy(),
-                       win=unicode(name),
+                       win=name,
                        opts=dict(title=name),
                        **kwargs
                        )

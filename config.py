@@ -14,7 +14,8 @@ class DefaultConfig(object):
     
     train_data_root = 'train/'
     test_data_root = 'test/'
-    load_model_path = 'checkpoints/model.pth'#预训练模型
+    #load_model_path = 'checkpoints/model.pth'#预训练模型
+    load_model_path = ''
     debug_file = '/tmp/debug'
     result_file = 'result.csv'
     
@@ -29,7 +30,7 @@ class DefaultConfig(object):
     
     '''根据字典更新配置属性操作'''
     def parse(self,kwargs):
-        for k,v in kwargs.iteritems():
+        for k,v in kwargs.items():
             if not hasattr(self,k):
                 warnings.warn("Warning:opt has npt attribute %s" %k)
             
@@ -37,8 +38,8 @@ class DefaultConfig(object):
         
         #打印配置信息
         print("user config:")
-        for k,v in self.__class__.__dict__.iteritems():
-            if not k.startwith('__'):
+        for k,v in self.__class__.__dict__.items():
+            if not k[0:2] == '__':
                 print(k,getattr(self,k))
 
 
